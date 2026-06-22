@@ -1,10 +1,12 @@
 mod cli;
+mod detect;
+mod diff;
+mod doctor;
+mod git;
+mod report;
 mod scan;
 mod snapshot;
-mod detect;
-mod git;
 mod tools;
-mod report;
 
 use clap::Parser;
 use cli::{Cli, Command};
@@ -44,30 +46,55 @@ fn run(cli: &Cli) -> Result<(), ProbeError> {
         Command::Snapshot => {
             let repo = cli.resolve_repo()?;
             let result = scan::run_scan(&repo)?;
-            snapshot::save(&repo, &result)?;
+            let filename = snapshot::save(&repo, &result)?;
             if cli.is_json() {
-                println!("{}", serde_json::to_string_pretty(&serde_json::json!({
-                    "ok": true,
-                    "message": "Snapshot saved",
-                }))?);
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({
+                        "ok": true,
+                        "message": "Snapshot saved",
+                        "snapshot": filename,
+                    }))?
+                );
             } else {
-                println!("Snapshot saved.");
+                println!("Snapshot saved: {filename}");
             }
             Ok(())
         }
         Command::Diff { against } => {
             let repo = cli.resolve_repo()?;
-            let _current = scan::run_scan(&repo)?;
-            // Stub: Bjarn will implement diff
-            let _ = against;
-            Err(ProbeError::NotImplemented("diff not yet implemented".into()))
+            let current = scan::run_scan(&repo)?;
+            let baseline_path = resolve_snapshot_path(&repo, against)?;
+            let baseline = snapshot::load_snapshot(&baseline_path)?;
+            let diff = diff::build_report(&current, &baseline, &baseline_path);
+            report::print_diff(&diff, cli.is_json())?;
+            Ok(())
         }
         Command::Doctor => {
             let repo = cli.resolve_repo()?;
-            let _result = scan::run_scan(&repo)?;
-            // Stub: Bjarn will implement doctor
-            Err(ProbeError::NotImplemented("doctor not yet implemented".into()))
+            let result = scan::run_scan(&repo)?;
+            let doctor = doctor::build_report(&result);
+            report::print_doctor(&doctor, cli.is_json())?;
+            Ok(())
         }
+    }
+}
+
+fn resolve_snapshot_path(
+    repo: &std::path::Path,
+    against: &str,
+) -> Result<std::path::PathBuf, ProbeError> {
+    if against == "latest" {
+        return snapshot::latest_snapshot_path(repo).ok_or_else(|| {
+            ProbeError::Validation("No snapshots found; run `probe snapshot` first".into())
+        });
+    }
+
+    let path = std::path::PathBuf::from(against);
+    if path.is_absolute() {
+        Ok(path)
+    } else {
+        Ok(repo.join(path))
     }
 }
 
@@ -75,8 +102,6 @@ fn run(cli: &Cli) -> Result<(), ProbeError> {
 pub enum ProbeError {
     #[error("{0}")]
     Validation(String),
-    #[error("{0}")]
-    NotImplemented(String),
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
     #[error("json error: {0}")]
@@ -87,7 +112,6 @@ impl ProbeError {
     pub fn exit_code(&self) -> i32 {
         match self {
             ProbeError::Validation(_) => 1,
-            ProbeError::NotImplemented(_) => 1,
             ProbeError::Io(_) => 2,
             ProbeError::Json(_) => 1,
         }
@@ -96,7 +120,6 @@ impl ProbeError {
     pub fn error_code(&self) -> &'static str {
         match self {
             ProbeError::Validation(_) => "validation_error",
-            ProbeError::NotImplemented(_) => "not_implemented",
             ProbeError::Io(_) => "io_error",
             ProbeError::Json(_) => "json_error",
         }

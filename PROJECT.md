@@ -2,7 +2,7 @@
 
 **What:** Agent preflight and drift scanner. Detects project type, git state, tool availability, lockfile freshness, and suggests commands — all in one scan.
 
-**Status:** Scan and snapshot implemented. Diff and doctor are stubs for Bjarn.
+**Status:** MVP implemented. Scan, snapshot, diff, doctor, docs, and integration tests are complete.
 
 **Tech:** Rust 2021, clap 4, serde/serde_json, chrono, sha2, thiserror.
 
@@ -20,8 +20,10 @@
 | tools.rs | Nix | Done |
 | snapshot.rs | Nix | Done |
 | report.rs | Nix | Done |
-| diff (TBD) | Bjarn | Stub |
-| doctor (TBD) | Bjarn | Stub |
+| diff.rs | Bjarn | Done |
+| doctor.rs | Bjarn | Done |
+| docs/SPEC.md | Bjarn | Done |
+| README.md | Bjarn | Done |
 
 ## Build
 
@@ -38,8 +40,8 @@ probe scan                         # text report of current project
 probe scan --format json           # structured JSON output
 probe scan --repo /path/to/project # scan a different project
 probe snapshot                     # save current state for later diff
-probe diff [latest|path]           # compare against snapshot (stub)
-probe doctor                       # actionable preflight summary (stub)
+probe diff [latest|path]           # compare against snapshot
+probe doctor                       # actionable preflight summary
 ```
 
 ## Detected Stacks
@@ -60,4 +62,4 @@ probe doctor                       # actionable preflight summary (stub)
 
 ## Last Updated
 
-2026-06-22 — Initial skeleton with scan/snapshot (Nix)
+2026-06-22 — MVP complete; `cargo test` passes with 17 integration tests.
