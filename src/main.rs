@@ -50,6 +50,7 @@ fn run(cli: &Cli) -> Result<(), ProbeError> {
         }
         Command::Snapshot => {
             let repo = cli.resolve_repo()?;
+            snapshot::ensure_storage(&repo)?;
             let result = scan::run_scan(&repo)?;
             let filename = snapshot::save(&repo, &result)?;
             if cli.is_json() {

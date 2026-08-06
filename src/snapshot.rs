@@ -7,16 +7,22 @@ use crate::ProbeError;
 const PROBE_DIR: &str = ".agent-probe";
 const SNAPSHOTS_DIR: &str = "snapshots";
 
-pub fn save(repo: &Path, result: &ScanResult) -> Result<String, ProbeError> {
+pub fn ensure_storage(repo: &Path) -> Result<(), ProbeError> {
     let snapshots_dir = repo.join(PROBE_DIR).join(SNAPSHOTS_DIR);
     std::fs::create_dir_all(&snapshots_dir)?;
 
-    // Write .gitignore if it doesn't exist
     let gitignore = repo.join(PROBE_DIR).join(".gitignore");
     if !gitignore.exists() {
         std::fs::write(&gitignore, "*\n")?;
     }
 
+    Ok(())
+}
+
+pub fn save(repo: &Path, result: &ScanResult) -> Result<String, ProbeError> {
+    ensure_storage(repo)?;
+
+    let snapshots_dir = repo.join(PROBE_DIR).join(SNAPSHOTS_DIR);
     let timestamp = Utc::now().format("%Y%m%d-%H%M%S").to_string();
     let filename = format!("{timestamp}.json");
     let filepath = snapshots_dir.join(&filename);

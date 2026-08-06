@@ -245,6 +245,8 @@ MVP diff categories:
 - dirty/untracked counts changed
 - tool availability changed
 - tool version changed
+- suite tool installed/version/linkage changed
+- suite tool added to or removed from the scan contract
 - lockfile hash changed
 - lockfile stale flag changed
 - suggested command added or removed

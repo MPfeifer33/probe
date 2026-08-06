@@ -131,6 +131,62 @@ fn diff_accepts_legacy_snapshots_without_new_suite_fields() {
 }
 
 #[test]
+fn diff_reports_suite_tool_linkage_drift() {
+    let tmp = TempDir::new().unwrap();
+    let dir = tmp.path();
+    write_rust_project(dir);
+
+    let snapshot = json_output(
+        probe(dir)
+            .args(["--format", "json", "snapshot"])
+            .output()
+            .unwrap(),
+        "snapshot json",
+    );
+    let snapshot_name = snapshot["snapshot"].as_str().unwrap();
+    let snapshot_path = dir.join(".agent-probe/snapshots").join(snapshot_name);
+
+    let content = fs::read_to_string(&snapshot_path).unwrap();
+    let mut baseline: serde_json::Value = serde_json::from_str(&content).unwrap();
+    let suite_tools = baseline["suite_tools"].as_array_mut().unwrap();
+    let tool = suite_tools.first_mut().unwrap();
+    let tool_name = tool["name"].as_str().unwrap().to_string();
+    let current_initialized = tool["initialized"].as_bool().unwrap();
+    let installed = tool["installed"].as_bool().unwrap();
+
+    tool["initialized"] = serde_json::json!(!current_initialized);
+    tool["state"] = serde_json::json!(if !current_initialized {
+        "linked"
+    } else if installed {
+        "available"
+    } else {
+        "missing"
+    });
+
+    fs::write(
+        &snapshot_path,
+        serde_json::to_string_pretty(&baseline).unwrap(),
+    )
+    .unwrap();
+
+    let diff = json_output(
+        probe(dir)
+            .args(["--format", "json", "diff", snapshot_path.to_str().unwrap()])
+            .output()
+            .unwrap(),
+        "diff suite tools",
+    );
+
+    assert!(diff["diff"]["changes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|change| {
+            change["kind"] == "suite_tool" && change["field"] == format!("{tool_name}.initialized")
+        }));
+}
+
+#[test]
 fn doctor_blocks_when_required_tools_are_missing() {
     let tmp = TempDir::new().unwrap();
     let dir = tmp.path();

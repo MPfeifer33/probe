@@ -5,7 +5,7 @@ use std::path::Path;
 
 use crate::detect::DetectedProject;
 use crate::scan::{LockfileInfo, ScanResult, SuggestedCommand};
-use crate::tools::ToolInfo;
+use crate::tools::{SuiteToolInfo, ToolInfo};
 
 #[derive(Debug, Serialize)]
 pub struct DiffReport {
@@ -45,6 +45,7 @@ pub fn build_report(
     diff_projects(&mut changes, current, baseline);
     diff_git(&mut changes, current, baseline);
     diff_tools(&mut changes, current, baseline);
+    diff_suite_tools(&mut changes, current, baseline);
     diff_lockfiles(&mut changes, current, baseline);
     diff_commands(&mut changes, current, baseline);
 
@@ -247,6 +248,88 @@ fn diff_tools(changes: &mut Vec<DiffChange>, current: &ScanResult, baseline: &Sc
     }
 }
 
+fn diff_suite_tools(changes: &mut Vec<DiffChange>, current: &ScanResult, baseline: &ScanResult) {
+    if baseline.suite_tools.is_empty() && baseline.schema_version == "probe.scan.legacy" {
+        return;
+    }
+
+    let before = keyed_suite_tools(&baseline.suite_tools);
+    let after = keyed_suite_tools(&current.suite_tools);
+
+    for (name, tool) in &before {
+        match after.get(name) {
+            Some(current_tool) => {
+                if tool.installed != current_tool.installed {
+                    let severity = if current_tool.installed {
+                        "info"
+                    } else {
+                        "warning"
+                    };
+                    push_change(
+                        changes,
+                        "suite_tool",
+                        severity,
+                        &format!("{name}.installed"),
+                        json!(tool.installed),
+                        json!(current_tool.installed),
+                        format!("Suite tool install state changed: {name}"),
+                    );
+                }
+                if tool.initialized != current_tool.initialized {
+                    let severity = if current_tool.initialized {
+                        "info"
+                    } else {
+                        "warning"
+                    };
+                    push_change(
+                        changes,
+                        "suite_tool",
+                        severity,
+                        &format!("{name}.initialized"),
+                        json!(tool.initialized),
+                        json!(current_tool.initialized),
+                        format!("Suite tool repo linkage changed: {name}"),
+                    );
+                }
+                if tool.version != current_tool.version {
+                    push_change(
+                        changes,
+                        "suite_tool",
+                        "warning",
+                        &format!("{name}.version"),
+                        json!(tool.version),
+                        json!(current_tool.version),
+                        format!("Suite tool version changed: {name}"),
+                    );
+                }
+            }
+            None => push_change(
+                changes,
+                "suite_tool",
+                "warning",
+                name,
+                json!(suite_tool_summary(tool)),
+                Value::Null,
+                format!("Suite tool removed from scan: {name}"),
+            ),
+        }
+    }
+
+    for (name, tool) in &after {
+        if !before.contains_key(name) {
+            push_change(
+                changes,
+                "suite_tool",
+                "info",
+                name,
+                Value::Null,
+                json!(suite_tool_summary(tool)),
+                format!("Suite tool added to scan: {name}"),
+            );
+        }
+    }
+}
+
 fn diff_lockfiles(changes: &mut Vec<DiffChange>, current: &ScanResult, baseline: &ScanResult) {
     let before = keyed_lockfiles(&baseline.lockfiles);
     let after = keyed_lockfiles(&current.lockfiles);
@@ -371,6 +454,10 @@ fn keyed_tools(tools: &[ToolInfo]) -> BTreeMap<String, &ToolInfo> {
     tools.iter().map(|tool| (tool.name.clone(), tool)).collect()
 }
 
+fn keyed_suite_tools(tools: &[SuiteToolInfo]) -> BTreeMap<String, &SuiteToolInfo> {
+    tools.iter().map(|tool| (tool.name.clone(), tool)).collect()
+}
+
 fn keyed_lockfiles(lockfiles: &[LockfileInfo]) -> BTreeMap<String, &LockfileInfo> {
     lockfiles
         .iter()
@@ -399,6 +486,17 @@ fn tool_summary(tool: &ToolInfo) -> Value {
     })
 }
 
+fn suite_tool_summary(tool: &SuiteToolInfo) -> Value {
+    json!({
+        "binary": tool.binary,
+        "installed": tool.installed,
+        "version": tool.version,
+        "state_path": tool.state_path,
+        "initialized": tool.initialized,
+        "state": tool.state,
+    })
+}
+
 fn lockfile_summary(lockfile: &LockfileInfo) -> Value {
     json!({
         "hash": lockfile.hash,
@@ -410,7 +508,9 @@ fn command_summary(command: &SuggestedCommand) -> Value {
     json!({
         "action": command.action,
         "command": command.command,
+        "argv": command.argv,
         "confidence": command.confidence,
+        "reason": command.reason,
     })
 }
 
