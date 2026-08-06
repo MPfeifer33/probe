@@ -1,5 +1,5 @@
-use std::path::Path;
 use chrono::Utc;
+use std::path::Path;
 
 use crate::scan::ScanResult;
 use crate::ProbeError;
@@ -36,7 +36,7 @@ pub fn latest_snapshot_path(repo: &Path) -> Option<std::path::PathBuf> {
     let mut entries: Vec<_> = std::fs::read_dir(&snapshots_dir)
         .ok()?
         .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().map_or(false, |ext| ext == "json"))
+        .filter(|e| e.path().extension().is_some_and(|ext| ext == "json"))
         .collect();
 
     entries.sort_by_key(|e| e.file_name());

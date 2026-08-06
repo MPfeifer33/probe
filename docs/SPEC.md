@@ -13,6 +13,8 @@ what changed, and what commands are likely safe?
 - Save repo-local snapshots that survive compaction and session boundaries.
 - Compare current state against a snapshot to surface drift.
 - Produce an actionable doctor summary for human and agent triage.
+- Surface nearby agent-suite tooling without making `probe` responsible for
+  those tools' storage or truth.
 
 ## Non-Goals
 
@@ -20,6 +22,8 @@ what changed, and what commands are likely safe?
 - Running arbitrary build/test commands automatically.
 - Persisting chat or coordination messages. That belongs in `latch`.
 - Global machine inventory. `probe` is repo-scoped.
+- Mutating or initializing other tools' state. Suite-tool detection is
+  observational only.
 
 ## Storage
 
@@ -50,8 +54,9 @@ Scans the repo and reports:
 - detected project stacks
 - git state
 - tool availability and versions
+- public agent-suite tool availability and repo-local linkage
 - lockfile hashes and stale signals
-- inferred commands
+- inferred commands with `argv` and reasons
 
 Text is the default output. JSON is available with `--format json`.
 
@@ -97,7 +102,10 @@ Runs a scan and produces an actionable preflight summary:
 
 - blockers: likely stop-work issues
 - warnings: things to understand before editing
-- next commands: likely validation commands
+- gates: named health checks with stable issue-code references
+- recommended commands: likely validation commands with shell text, `argv`,
+  confidence, and reason
+- suite tools: installed/linked status for related agent-first tools
 
 ## Scan Schema
 
@@ -108,6 +116,7 @@ Runs a scan and produces an actionable preflight summary:
   "ok": true,
   "scan": {
     "timestamp": "2026-06-22T03:39:00Z",
+    "schema_version": "probe.scan.v1",
     "repo_path": "/path/to/repo",
     "projects": [
       {
@@ -142,6 +151,18 @@ Runs a scan and produces an actionable preflight summary:
         "available": true
       }
     ],
+    "suite_tools": [
+      {
+        "name": "latch",
+        "binary": "latch",
+        "role": "repo-local coordination ledger",
+        "installed": true,
+        "version": "0.1.0",
+        "state_path": ".agent-workspace/workspace.sqlite",
+        "initialized": true,
+        "state": "linked"
+      }
+    ],
     "lockfiles": [
       {
         "path": "Cargo.lock",
@@ -153,7 +174,9 @@ Runs a scan and produces an actionable preflight summary:
       {
         "action": "test",
         "command": "cargo test",
-        "confidence": "high"
+        "argv": ["cargo", "test"],
+        "confidence": "high",
+        "reason": "Rust manifest detected"
       }
     ]
   }
@@ -162,6 +185,20 @@ Runs a scan and produces an actionable preflight summary:
 
 All arrays are allowed to be empty. `git` is `null` outside a git repository.
 `ahead` and `behind` are `null` when no upstream is configured.
+Snapshots written before `probe.scan.v1` remain readable; missing
+`schema_version`, `suite_tools`, `argv`, or `reason` fields are treated as
+legacy-compatible defaults.
+
+Suite-tool states:
+
+- `missing`: the binary was not found on `PATH`
+- `available`: the binary exists, but the expected repo-local state path is not
+  present
+- `linked`: the binary exists and the expected repo-local state path is present
+
+Tools without repo-local state paths, such as `switchboard`, are considered
+initialized when their binary is installed. `version` may be `null` for tools
+that are installed and answer `--help` but do not expose a `--version` flag.
 
 ## Diff Schema
 
@@ -220,8 +257,18 @@ MVP diff categories:
 {
   "ok": true,
   "doctor": {
+    "schema_version": "probe.doctor.v1",
     "status": "ready",
+    "action_level": "validate",
     "repo_path": "/path/to/repo",
+    "gates": [
+      {
+        "name": "git_state",
+        "status": "ok",
+        "summary": "master @ 83a8641; 0 dirty, 0 untracked",
+        "issue_codes": []
+      }
+    ],
     "blockers": [],
     "warnings": [
       {
@@ -234,9 +281,21 @@ MVP diff categories:
       {
         "action": "test",
         "command": "cargo test",
-        "confidence": "high"
+        "argv": ["cargo", "test"],
+        "confidence": "high",
+        "reason": "Rust manifest detected"
       }
-    ]
+    ],
+    "recommended_commands": [
+      {
+        "action": "test",
+        "command": "cargo test",
+        "argv": ["cargo", "test"],
+        "confidence": "high",
+        "reason": "Rust manifest detected"
+      }
+    ],
+    "suite_tools": []
   }
 }
 ```
@@ -247,14 +306,33 @@ Doctor statuses:
 - `caution`: warnings exist, but no blockers
 - `blocked`: one or more blockers exist
 
+Doctor action levels:
+
+- `stop`: one or more blockers exist
+- `review`: warnings exist, but no blockers
+- `validate`: no blockers/warnings and at least one recommended command exists
+- `none`: no blocker, warning, or recommended validation command exists
+
+Doctor gates:
+
+- `project`: detected project manifests
+- `git_state`: dirty/untracked/behind/unavailable git state
+- `tools`: required and optional stack tools
+- `lockfiles`: stale or missing lockfile signals
+- `commands`: inferred validation commands
+- `suite_tools`: related agent-suite binaries and repo-local linkage
+
 MVP doctor rules:
 
 - Missing required tool for a detected stack is a blocker.
 - Stale lockfiles are warnings.
 - Dirty or untracked git state is a warning.
 - Git behind upstream is a warning.
+- Unavailable git state is a warning.
 - No detected projects is a warning.
 - No suggested commands is a warning.
+- `recommended_commands` is the canonical command list for new consumers.
+  `next_commands` is retained as a compatibility alias.
 
 ## Exit Codes
 
@@ -265,7 +343,7 @@ MVP doctor rules:
 | `2` | IO error |
 
 Doctor does not fail the process for warnings or blockers in the MVP. Consumers
-should inspect the JSON `doctor.status`.
+should inspect the JSON `doctor.status` and `doctor.action_level`.
 
 ## Relationship To latch
 
@@ -284,6 +362,7 @@ latch decision add --title "..."
 latch note add --kind hazard --body "..."
 ```
 
-The two tools deliberately do not share storage or responsibility. `probe`
-describes repo readiness and drift. `latch` records coordination decisions and
-claims.
+The tools deliberately do not share storage or responsibility. `probe`
+describes repo readiness, drift, recommended local validation, and whether the
+rest of the public agent-tool suite is visible. `latch` records coordination
+decisions and claims.

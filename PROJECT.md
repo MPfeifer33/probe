@@ -1,8 +1,8 @@
 # PROJECT.md — probe
 
-**What:** Agent preflight and drift scanner. Detects project type, git state, tool availability, lockfile freshness, and suggests commands — all in one scan.
+**What:** Agent preflight and drift scanner. Detects project type, git state, tool availability, agent-suite linkage, lockfile freshness, and suggests commands — all in one scan.
 
-**Status:** MVP implemented. Scan, snapshot, diff, doctor, docs, and integration tests are complete.
+**Status:** Suite-hardening pass in progress. Scan, snapshot, diff, doctor, docs, and integration tests are complete; JSON contracts now expose schema versions, structured command args, doctor gates/action levels, and suite-tool visibility.
 
 **Tech:** Rust 2021, clap 4, serde/serde_json, chrono, sha2, thiserror.
 
@@ -59,7 +59,11 @@ probe doctor                       # actionable preflight summary
 - Lockfile staleness: compares manifest mtime vs lockfile mtime
 - Tool detection: runs version commands, extracts version numbers
 - Snapshots are timestamped JSON, one file per snapshot
+- `doctor` status remains data, not process failure; agents inspect JSON
+  `doctor.status` and `doctor.action_level`
+- Agent-suite detection is observational only; `probe` does not initialize
+  latch/atlas/sentinel/witness/switchboard state
 
 ## Last Updated
 
-2026-06-22 — MVP complete; `cargo test` passes with 17 integration tests.
+2026-08-06 — Suite-hardening pass: structured scan/doctor contract, agent-suite detection, legacy snapshot compatibility, and expanded integration tests.

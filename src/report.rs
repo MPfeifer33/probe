@@ -49,6 +49,7 @@ pub fn print_doctor(result: &DoctorReport, is_json: bool) -> Result<(), ProbeErr
 
 fn print_text(result: &ScanResult) {
     println!("probe scan: {}", result.repo_path);
+    println!("  Schema: {}", result.schema_version);
     println!();
 
     // Projects
@@ -106,6 +107,24 @@ fn print_text(result: &ScanResult) {
         }
     }
     println!();
+
+    // Agent suite tools
+    if !result.suite_tools.is_empty() {
+        println!("  Agent suite:");
+        for tool in &result.suite_tools {
+            let marker = if tool.installed { "✓" } else { "✗" };
+            let state_path = tool
+                .state_path
+                .as_ref()
+                .map(|path| format!(" ({path})"))
+                .unwrap_or_default();
+            println!(
+                "    {marker} {} — {} [{}]{}",
+                tool.name, tool.role, tool.state, state_path
+            );
+        }
+        println!();
+    }
 
     // Lockfiles
     if !result.lockfiles.is_empty() {
@@ -165,18 +184,36 @@ fn print_diff_text(result: &DiffReport) {
 
 fn print_doctor_text(result: &DoctorReport) {
     println!("probe doctor: {} ({})", result.status, result.repo_path);
+    println!("  Action: {}", result.action_level);
     println!();
+
+    if !result.gates.is_empty() {
+        println!("  Gates:");
+        for gate in &result.gates {
+            println!("    {}: {} — {}", gate.name, gate.status, gate.summary);
+        }
+        println!();
+    }
 
     print_issues("Blockers", &result.blockers);
     print_issues("Warnings", &result.warnings);
 
-    if !result.next_commands.is_empty() {
-        println!("  Next commands:");
-        for command in &result.next_commands {
+    if !result.recommended_commands.is_empty() {
+        println!("  Recommended commands:");
+        for command in &result.recommended_commands {
             println!(
-                "    {} -> `{}` [{}]",
-                command.action, command.command, command.confidence
+                "    {} -> `{}` [{}] — {}",
+                command.action, command.command, command.confidence, command.reason
             );
+        }
+    }
+
+    if !result.suite_tools.is_empty() {
+        println!();
+        println!("  Suite tools:");
+        for tool in &result.suite_tools {
+            let marker = if tool.installed { "✓" } else { "✗" };
+            println!("    {marker} {} [{}]", tool.name, tool.state);
         }
     }
 }

@@ -17,7 +17,8 @@ name = "snap-test"
 version = "0.1.0"
 edition = "2021"
 "#,
-    ).unwrap();
+    )
+    .unwrap();
     std::fs::create_dir_all(dir.join("src")).unwrap();
     std::fs::write(dir.join("src/main.rs"), "fn main() {}").unwrap();
 }
@@ -29,7 +30,11 @@ fn snapshot_creates_file() {
     create_rust_project(dir);
 
     let output = probe(dir).args(["snapshot"]).output().unwrap();
-    assert!(output.status.success(), "snapshot failed: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "snapshot failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     // Check .agent-probe/snapshots/ exists and has a file
     let snapshots_dir = dir.join(".agent-probe/snapshots");
@@ -65,7 +70,10 @@ fn snapshot_json_output() {
     let dir = tmp.path();
     create_rust_project(dir);
 
-    let output = probe(dir).args(["snapshot", "--format", "json"]).output().unwrap();
+    let output = probe(dir)
+        .args(["snapshot", "--format", "json"])
+        .output()
+        .unwrap();
     assert!(output.status.success());
 
     let stdout = String::from_utf8_lossy(&output.stdout);

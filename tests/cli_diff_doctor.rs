@@ -92,6 +92,45 @@ fn diff_text_reports_no_changes_after_snapshot() {
 }
 
 #[test]
+fn diff_accepts_legacy_snapshots_without_new_suite_fields() {
+    let tmp = TempDir::new().unwrap();
+    let dir = tmp.path();
+    write_rust_project(dir);
+
+    let snapshot_dir = dir.join(".agent-probe/snapshots");
+    fs::create_dir_all(&snapshot_dir).unwrap();
+    let snapshot_path = snapshot_dir.join("legacy.json");
+    fs::write(
+        &snapshot_path,
+        format!(
+            r#"{{
+  "timestamp": "2026-06-22T03:39:00Z",
+  "repo_path": "{}",
+  "projects": [{{"kind":"rust","root":".","manifest":"Cargo.toml","metadata":{{"name":"sample"}}}}],
+  "git": null,
+  "tools": [],
+  "lockfiles": [],
+  "suggested_commands": [{{"action":"test","command":"cargo test","confidence":"high"}}]
+}}"#,
+            dir.display()
+        ),
+    )
+    .unwrap();
+
+    let output = probe(dir)
+        .args([
+            "--format",
+            "json",
+            "diff",
+            ".agent-probe/snapshots/legacy.json",
+        ])
+        .output()
+        .unwrap();
+
+    assert_success(&output, "diff legacy snapshot");
+}
+
+#[test]
 fn doctor_blocks_when_required_tools_are_missing() {
     let tmp = TempDir::new().unwrap();
     let dir = tmp.path();
@@ -107,9 +146,16 @@ fn doctor_blocks_when_required_tools_are_missing() {
     );
 
     assert_eq!(doctor["doctor"]["status"], "blocked");
+    assert_eq!(doctor["doctor"]["action_level"], "stop");
+    assert_eq!(doctor["doctor"]["schema_version"], "probe.doctor.v1");
     let blockers = doctor["doctor"]["blockers"].as_array().unwrap();
     assert!(blockers.iter().any(|issue| issue["code"] == "tool_missing"
         && issue["message"].as_str().unwrap().contains("cargo")));
+    assert!(doctor["doctor"]["gates"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|gate| gate["name"] == "tools" && gate["status"] == "stop"));
 }
 
 #[test]
@@ -136,14 +182,85 @@ fn doctor_warns_about_dirty_git_state_and_suggests_commands() {
     );
 
     assert_eq!(doctor["doctor"]["status"], "caution");
+    assert_eq!(doctor["doctor"]["action_level"], "review");
     assert!(doctor["doctor"]["warnings"]
         .as_array()
         .unwrap()
         .iter()
         .any(|issue| issue["code"] == "git_dirty"));
+    assert!(doctor["doctor"]["recommended_commands"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|command| {
+            command["command"] == "cargo test"
+                && command["argv"].as_array().unwrap() == &vec!["cargo", "test"]
+                && command["reason"]
+                    .as_str()
+                    .is_some_and(|reason| !reason.is_empty())
+        }));
     assert!(doctor["doctor"]["next_commands"]
         .as_array()
         .unwrap()
         .iter()
         .any(|command| command["command"] == "cargo test"));
+}
+
+#[test]
+fn doctor_reports_structured_gates_and_suite_tools_when_ready() {
+    let tmp = TempDir::new().unwrap();
+    let dir = tmp.path();
+    write_rust_project(dir);
+
+    assert_success(
+        &Command::new("git")
+            .arg("init")
+            .current_dir(dir)
+            .output()
+            .unwrap(),
+        "git init",
+    );
+    assert_success(
+        &Command::new("git")
+            .args(["add", "-A"])
+            .current_dir(dir)
+            .output()
+            .unwrap(),
+        "git add",
+    );
+    assert_success(
+        &Command::new("git")
+            .args(["commit", "-m", "init", "--allow-empty"])
+            .current_dir(dir)
+            .output()
+            .unwrap(),
+        "git commit",
+    );
+
+    let doctor = json_output(
+        probe(dir)
+            .args(["--format", "json", "doctor"])
+            .output()
+            .unwrap(),
+        "doctor json",
+    );
+
+    assert_eq!(doctor["doctor"]["status"], "ready");
+    assert_eq!(doctor["doctor"]["action_level"], "validate");
+    let gates = doctor["doctor"]["gates"].as_array().unwrap();
+    for expected_gate in [
+        "project",
+        "git_state",
+        "tools",
+        "lockfiles",
+        "commands",
+        "suite_tools",
+    ] {
+        assert!(gates.iter().any(|gate| gate["name"] == expected_gate));
+    }
+    assert!(doctor["doctor"]["suite_tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|tool| tool["name"] == "witness"));
 }

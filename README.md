@@ -8,8 +8,8 @@ What am I standing in, what changed, and what commands are likely safe?
 ```
 
 It detects project stacks, git state, tool availability, lockfile freshness,
-and inferred build/test/run commands. It can also save snapshots and compare
-later sessions against them.
+inferred build/test/run commands, and nearby agent-suite tooling. It can also
+save snapshots and compare later sessions against them.
 
 ## Quickstart
 
@@ -78,8 +78,9 @@ Reports:
 - project stacks: Rust, Node, Python, Go, Tauri
 - git branch, HEAD, dirty/untracked counts, ahead/behind, recent commits
 - relevant tool availability and versions
+- agent-suite tools such as latch, atlas, sentinel, witness, and switchboard
 - lockfile hashes and stale flags
-- inferred commands with confidence
+- inferred commands with confidence, structured `argv`, and a short reason
 
 ### snapshot
 
@@ -115,6 +116,16 @@ Summarizes the repo into:
 - `caution`: warnings exist, but no blockers
 - `blocked`: one or more blockers exist
 
+JSON doctor reports also expose an `action_level` for agents:
+
+- `stop`: a blocker needs human/agent attention before normal work
+- `review`: warnings exist; read them before editing
+- `validate`: no warnings/blockers and recommended commands exist
+- `none`: no clear action was inferred
+
+The report includes named `gates`, `recommended_commands`, and `suite_tools`.
+`next_commands` remains as a compatibility alias for older consumers.
+
 Doctor checks are conservative. It does not run build or test commands; it
 only tells you what looks safe to run next.
 
@@ -137,6 +148,17 @@ probe diff
 `probe` complements `latch`: `probe` describes repo readiness and drift;
 `latch` persists coordination claims, decisions, tasks, and hazards.
 
+For the current public-agent-tool suite, `probe scan`/`probe doctor` also
+report whether related tools are installed and whether their repo-local state
+appears initialized:
+
+- `probe`: `.agent-probe/`
+- `latch`: `.agent-workspace/workspace.sqlite`
+- `atlas`: `.agent-atlas/graph.json`
+- `sentinel`: `.agent-sentinel/matrix.json`
+- `witness`: `.agent-witness/`
+- `switchboard`, `sieve`, and `rivet`: installed binary check only
+
 ## Exit Codes
 
 | Code | Meaning |
@@ -146,7 +168,8 @@ probe diff
 | `2` | IO error |
 
 `probe doctor` returns exit code `0` even when the doctor status is `blocked`;
-machine consumers should inspect `doctor.status` in JSON output.
+machine consumers should inspect `doctor.status` and `doctor.action_level` in
+JSON output.
 
 ## Design
 

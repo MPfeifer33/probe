@@ -1,6 +1,6 @@
-use std::path::Path;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::path::Path;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DetectedProject {
@@ -84,7 +84,10 @@ pub fn detect_projects(repo: &Path) -> Vec<DetectedProject> {
         let mut metadata = serde_json::Map::new();
         if let Ok(content) = std::fs::read_to_string(repo.join("go.mod")) {
             if let Some(module) = content.lines().find(|l| l.starts_with("module ")) {
-                metadata.insert("module".into(), Value::String(module.trim_start_matches("module ").trim().into()));
+                metadata.insert(
+                    "module".into(),
+                    Value::String(module.trim_start_matches("module ").trim().into()),
+                );
             }
         }
         projects.push(DetectedProject {
@@ -118,10 +121,9 @@ pub fn detect_projects(repo: &Path) -> Vec<DetectedProject> {
 fn extract_toml_value(content: &str, key: &str) -> Option<String> {
     for line in content.lines() {
         let trimmed = line.trim();
-        if trimmed.starts_with(&format!("{key}")) {
-            if let Some((_k, v)) = trimmed.split_once('=') {
-                let v = v.trim().trim_matches('"');
-                return Some(v.to_string());
+        if let Some((candidate_key, v)) = trimmed.split_once('=') {
+            if candidate_key.trim() == key {
+                return Some(v.trim().trim_matches('"').to_string());
             }
         }
     }

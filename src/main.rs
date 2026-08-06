@@ -26,7 +26,12 @@ fn main() {
                         "message": e.to_string(),
                     }
                 });
-                eprintln!("{}", serde_json::to_string_pretty(&err_json).unwrap_or_else(|_| format!("{{\"ok\":false,\"error\":{{\"message\":\"{e}\"}}}}")));
+                eprintln!(
+                    "{}",
+                    serde_json::to_string_pretty(&err_json).unwrap_or_else(|_| format!(
+                        "{{\"ok\":false,\"error\":{{\"message\":\"{e}\"}}}}"
+                    ))
+                );
             } else {
                 eprintln!("error: {e}");
             }

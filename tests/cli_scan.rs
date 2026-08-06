@@ -17,7 +17,8 @@ name = "test-project"
 version = "0.1.0"
 edition = "2021"
 "#,
-    ).unwrap();
+    )
+    .unwrap();
     std::fs::create_dir_all(dir.join("src")).unwrap();
     std::fs::write(dir.join("src/main.rs"), "fn main() {}").unwrap();
 }
@@ -26,13 +27,26 @@ fn create_node_project(dir: &std::path::Path) {
     std::fs::write(
         dir.join("package.json"),
         r#"{"name": "test-app", "version": "1.0.0"}"#,
-    ).unwrap();
+    )
+    .unwrap();
 }
 
 fn init_git(dir: &std::path::Path) {
-    Command::new("git").args(["init"]).current_dir(dir).output().unwrap();
-    Command::new("git").args(["add", "-A"]).current_dir(dir).output().unwrap();
-    Command::new("git").args(["commit", "-m", "init", "--allow-empty"]).current_dir(dir).output().unwrap();
+    Command::new("git")
+        .args(["init"])
+        .current_dir(dir)
+        .output()
+        .unwrap();
+    Command::new("git")
+        .args(["add", "-A"])
+        .current_dir(dir)
+        .output()
+        .unwrap();
+    Command::new("git")
+        .args(["commit", "-m", "init", "--allow-empty"])
+        .current_dir(dir)
+        .output()
+        .unwrap();
 }
 
 #[test]
@@ -41,8 +55,15 @@ fn scan_detects_rust_project() {
     let dir = tmp.path();
     create_rust_project(dir);
 
-    let output = probe(dir).args(["scan", "--format", "json"]).output().unwrap();
-    assert!(output.status.success(), "scan failed: {}", String::from_utf8_lossy(&output.stderr));
+    let output = probe(dir)
+        .args(["scan", "--format", "json"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "scan failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
@@ -60,7 +81,10 @@ fn scan_detects_node_project() {
     let dir = tmp.path();
     create_node_project(dir);
 
-    let output = probe(dir).args(["scan", "--format", "json"]).output().unwrap();
+    let output = probe(dir)
+        .args(["scan", "--format", "json"])
+        .output()
+        .unwrap();
     assert!(output.status.success());
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -79,7 +103,10 @@ fn scan_detects_multiple_stacks() {
     create_rust_project(dir);
     create_node_project(dir);
 
-    let output = probe(dir).args(["scan", "--format", "json"]).output().unwrap();
+    let output = probe(dir)
+        .args(["scan", "--format", "json"])
+        .output()
+        .unwrap();
     assert!(output.status.success());
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -87,7 +114,10 @@ fn scan_detects_multiple_stacks() {
 
     let projects = json["scan"]["projects"].as_array().unwrap();
     assert_eq!(projects.len(), 2);
-    let kinds: Vec<&str> = projects.iter().map(|p| p["kind"].as_str().unwrap()).collect();
+    let kinds: Vec<&str> = projects
+        .iter()
+        .map(|p| p["kind"].as_str().unwrap())
+        .collect();
     assert!(kinds.contains(&"rust"));
     assert!(kinds.contains(&"node"));
 }
@@ -99,7 +129,10 @@ fn scan_reports_git_state() {
     create_rust_project(dir);
     init_git(dir);
 
-    let output = probe(dir).args(["scan", "--format", "json"]).output().unwrap();
+    let output = probe(dir)
+        .args(["scan", "--format", "json"])
+        .output()
+        .unwrap();
     assert!(output.status.success());
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -118,7 +151,10 @@ fn scan_no_git_reports_null() {
     create_rust_project(dir);
     // No git init
 
-    let output = probe(dir).args(["scan", "--format", "json"]).output().unwrap();
+    let output = probe(dir)
+        .args(["scan", "--format", "json"])
+        .output()
+        .unwrap();
     assert!(output.status.success());
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -132,7 +168,10 @@ fn scan_reports_tools() {
     let dir = tmp.path();
     create_rust_project(dir);
 
-    let output = probe(dir).args(["scan", "--format", "json"]).output().unwrap();
+    let output = probe(dir)
+        .args(["scan", "--format", "json"])
+        .output()
+        .unwrap();
     assert!(output.status.success());
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -154,17 +193,64 @@ fn scan_suggests_commands_for_rust() {
     let dir = tmp.path();
     create_rust_project(dir);
 
-    let output = probe(dir).args(["scan", "--format", "json"]).output().unwrap();
+    let output = probe(dir)
+        .args(["scan", "--format", "json"])
+        .output()
+        .unwrap();
     assert!(output.status.success());
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
 
     let commands = json["scan"]["suggested_commands"].as_array().unwrap();
-    let actions: Vec<&str> = commands.iter().map(|c| c["action"].as_str().unwrap()).collect();
+    let actions: Vec<&str> = commands
+        .iter()
+        .map(|c| c["action"].as_str().unwrap())
+        .collect();
     assert!(actions.contains(&"check"));
     assert!(actions.contains(&"test"));
     assert!(actions.contains(&"build"));
+    assert!(commands.iter().any(|c| c["argv"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|arg| arg == "cargo")));
+    assert!(commands.iter().all(|c| c["reason"]
+        .as_str()
+        .is_some_and(|reason| !reason.is_empty())));
+}
+
+#[test]
+fn scan_reports_agent_suite_capabilities() {
+    let tmp = TempDir::new().unwrap();
+    let dir = tmp.path();
+    create_rust_project(dir);
+    std::fs::create_dir_all(dir.join(".agent-workspace")).unwrap();
+    std::fs::write(dir.join(".agent-workspace/workspace.sqlite"), "").unwrap();
+
+    let output = probe(dir)
+        .args(["scan", "--format", "json"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+
+    assert_eq!(json["scan"]["schema_version"], "probe.scan.v1");
+    let suite_tools = json["scan"]["suite_tools"].as_array().unwrap();
+    let names: Vec<&str> = suite_tools
+        .iter()
+        .map(|tool| tool["name"].as_str().unwrap())
+        .collect();
+    assert!(names.contains(&"probe"));
+    assert!(names.contains(&"latch"));
+    assert!(names.contains(&"switchboard"));
+    assert!(suite_tools.iter().any(|tool| {
+        tool["name"] == "latch"
+            && tool["state_path"] == ".agent-workspace/workspace.sqlite"
+            && tool["initialized"] == true
+    }));
 }
 
 #[test]
@@ -189,7 +275,10 @@ fn scan_detects_lockfile_with_hash() {
     create_rust_project(dir);
     std::fs::write(dir.join("Cargo.lock"), "# dummy lockfile\n").unwrap();
 
-    let output = probe(dir).args(["scan", "--format", "json"]).output().unwrap();
+    let output = probe(dir)
+        .args(["scan", "--format", "json"])
+        .output()
+        .unwrap();
     assert!(output.status.success());
 
     let stdout = String::from_utf8_lossy(&output.stdout);

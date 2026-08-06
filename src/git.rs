@@ -1,6 +1,6 @@
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::process::Command;
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GitState {
@@ -136,24 +136,22 @@ fn get_recent_commits(repo: &Path, count: usize) -> Vec<RecentCommit> {
         .output();
 
     match output {
-        Ok(o) if o.status.success() => {
-            String::from_utf8_lossy(&o.stdout)
-                .lines()
-                .filter_map(|line| {
-                    let parts: Vec<&str> = line.splitn(4, '|').collect();
-                    if parts.len() == 4 {
-                        Some(RecentCommit {
-                            sha: parts[0].to_string(),
-                            message: parts[1].to_string(),
-                            author: parts[2].to_string(),
-                            date: parts[3].to_string(),
-                        })
-                    } else {
-                        None
-                    }
-                })
-                .collect()
-        }
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout)
+            .lines()
+            .filter_map(|line| {
+                let parts: Vec<&str> = line.splitn(4, '|').collect();
+                if parts.len() == 4 {
+                    Some(RecentCommit {
+                        sha: parts[0].to_string(),
+                        message: parts[1].to_string(),
+                        author: parts[2].to_string(),
+                        date: parts[3].to_string(),
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect(),
         _ => Vec::new(),
     }
 }
