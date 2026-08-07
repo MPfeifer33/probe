@@ -139,7 +139,7 @@ Runs a scan and produces an actionable preflight summary:
         {
           "sha": "83a8641",
           "message": "Initial skeleton",
-          "author": "Nix",
+          "author": "Reviewer",
           "date": "2026-06-22T03:42:00Z"
         }
       ]
