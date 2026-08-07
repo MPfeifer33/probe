@@ -1,0 +1,7 @@
+Probe
+Copyright 2026 Mark Pfeifer
+
+Probe is an agent preflight and drift scanner for project workspaces.
+
+Redistributions and derivative works must preserve this NOTICE file, or an
+equivalent attribution notice, as required by the Apache License, Version 2.0.
