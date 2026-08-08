@@ -2,7 +2,7 @@
 
 **What:** Agent preflight and drift scanner. Detects project type, git state, tool availability, agent-suite linkage, lockfile freshness, and suggests commands — all in one scan.
 
-**Status:** Suite-hardening pass in progress. Scan, snapshot, diff, doctor, docs, and integration tests are complete; JSON contracts now expose schema versions, structured command args, doctor gates/action levels, and suite-tool visibility.
+**Status:** Suite-hardening pass in progress. Scan, snapshot, diff, doctor, docs, and integration tests are complete; JSON contracts now expose schema versions, structured command args, command working directories, doctor gates/action levels, and suite-tool visibility.
 
 **Tech:** Rust 2021, clap 4, serde/serde_json, chrono, sha2, thiserror.
 
@@ -55,7 +55,8 @@ probe doctor                       # actionable preflight summary
 ## Key Design Choices
 
 - Text output by default (agents read text; use --format json for structured consumption)
-- Project detection is heuristic — checks for manifest files, not deep parsing
+- Project detection is heuristic — checks root and shallow nested manifest
+  files, not deep parsing
 - Lockfile staleness: compares manifest mtime vs lockfile mtime
 - Tool detection: runs version commands, extracts version numbers
 - Snapshots are timestamped JSON, one file per snapshot
@@ -66,4 +67,4 @@ probe doctor                       # actionable preflight summary
 
 ## Last Updated
 
-2026-08-06 — Suite-hardening pass: structured scan/doctor contract, agent-suite detection, legacy snapshot compatibility, and expanded integration tests.
+2026-08-08 — Nested-project pass: root scans now detect shallow nested Node/Tauri/Rust/Python/Go manifests and emit explicit command working directories.

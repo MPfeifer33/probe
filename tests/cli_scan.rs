@@ -31,6 +31,35 @@ fn create_node_project(dir: &std::path::Path) {
     .unwrap();
 }
 
+fn create_holt_shaped_project(dir: &std::path::Path) {
+    std::fs::create_dir_all(dir.join("app/src-tauri")).unwrap();
+    std::fs::create_dir_all(dir.join("crates/hillock-core/src")).unwrap();
+    std::fs::write(
+        dir.join("app/package.json"),
+        r#"{"name": "holt-app", "version": "0.3.3", "scripts": {"build": "vite build"}}"#,
+    )
+    .unwrap();
+    std::fs::write(dir.join("app/package-lock.json"), "{}").unwrap();
+    std::fs::write(
+        dir.join("app/src-tauri/Cargo.toml"),
+        r#"[package]
+name = "holt"
+version = "0.3.3"
+edition = "2021"
+"#,
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("crates/hillock-core/Cargo.toml"),
+        r#"[package]
+name = "hillock-core"
+version = "0.1.0"
+edition = "2021"
+"#,
+    )
+    .unwrap();
+}
+
 fn init_git(dir: &std::path::Path) {
     Command::new("git")
         .args(["init"])
@@ -120,6 +149,50 @@ fn scan_detects_multiple_stacks() {
         .collect();
     assert!(kinds.contains(&"rust"));
     assert!(kinds.contains(&"node"));
+}
+
+#[test]
+fn scan_detects_nested_tauri_workspace_from_repo_root() {
+    let tmp = TempDir::new().unwrap();
+    let dir = tmp.path();
+    create_holt_shaped_project(dir);
+
+    let output = probe(dir)
+        .args(["scan", "--format", "json"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+
+    let projects = json["scan"]["projects"].as_array().unwrap();
+    assert!(projects.iter().any(|p| {
+        p["kind"] == "node" && p["root"] == "app" && p["manifest"] == "app/package.json"
+    }));
+    assert!(projects.iter().any(|p| {
+        p["kind"] == "tauri"
+            && p["root"] == "app/src-tauri"
+            && p["manifest"] == "app/src-tauri/Cargo.toml"
+    }));
+    assert!(projects.iter().any(|p| {
+        p["kind"] == "rust"
+            && p["root"] == "crates/hillock-core"
+            && p["manifest"] == "crates/hillock-core/Cargo.toml"
+    }));
+
+    let commands = json["scan"]["suggested_commands"].as_array().unwrap();
+    assert!(commands.iter().any(|c| {
+        c["action"] == "build" && c["cwd"] == "app" && c["command"] == "cd app && npm run build"
+    }));
+    assert!(commands.iter().any(|c| {
+        c["action"] == "test"
+            && c["cwd"] == "crates/hillock-core"
+            && c["command"] == "cd crates/hillock-core && cargo test"
+    }));
+    assert!(commands.iter().any(|c| {
+        c["action"] == "dev" && c["cwd"] == "app" && c["command"] == "cd app && npm run tauri dev"
+    }));
 }
 
 #[test]

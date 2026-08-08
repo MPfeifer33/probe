@@ -39,6 +39,7 @@ pub struct DoctorCommand {
     pub action: String,
     pub command: String,
     pub argv: Vec<String>,
+    pub cwd: String,
     pub confidence: String,
     pub reason: String,
 }
@@ -145,6 +146,7 @@ pub fn build_report(scan: &ScanResult) -> DoctorReport {
             action: command.action.clone(),
             command: command.command.clone(),
             argv: command.argv.clone(),
+            cwd: command.cwd.clone(),
             confidence: command.confidence.clone(),
             reason: command.reason.clone(),
         })

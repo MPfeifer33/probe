@@ -96,11 +96,14 @@ probe scan --format json
 Reports:
 
 - project stacks: Rust, Node, Python, Go, Tauri
+- shallow nested project manifests, such as `app/package.json`,
+  `app/src-tauri/Cargo.toml`, or `crates/*/Cargo.toml`
 - git branch, HEAD, dirty/untracked counts, ahead/behind, recent commits
 - relevant tool availability and versions
 - agent-suite tools such as latch, atlas, sentinel, witness, and switchboard
 - lockfile hashes and stale flags
-- inferred commands with confidence, structured `argv`, and a short reason
+- inferred commands with confidence, `cwd`, structured `argv`, and a short
+  reason
 
 ### snapshot
 
@@ -145,6 +148,9 @@ JSON doctor reports also expose an `action_level` for agents:
 
 The report includes named `gates`, `recommended_commands`, and `suite_tools`.
 `next_commands` remains as a compatibility alias for older consumers.
+Recommended commands include a `cwd` field. When a command belongs to a nested
+project, the human-readable `command` includes the matching `cd ... && ...`
+prefix so agents can copy it without guessing the working directory.
 
 Doctor checks are conservative. It does not run build or test commands; it
 only tells you what looks safe to run next.

@@ -43,6 +43,25 @@ edition = "2021"
     fs::write(dir.join("Cargo.lock"), "# baseline lock\n").unwrap();
 }
 
+fn write_nested_tauri_project(dir: &Path) {
+    fs::create_dir_all(dir.join("app/src-tauri")).unwrap();
+    fs::write(
+        dir.join("app/package.json"),
+        r#"{"name": "nested-app", "version": "0.1.0", "scripts": {"build": "vite build"}}"#,
+    )
+    .unwrap();
+    fs::write(dir.join("app/package-lock.json"), "{}").unwrap();
+    fs::write(
+        dir.join("app/src-tauri/Cargo.toml"),
+        r#"[package]
+name = "nested-tauri"
+version = "0.1.0"
+edition = "2021"
+"#,
+    )
+    .unwrap();
+}
+
 #[test]
 fn diff_reports_lockfile_drift_against_latest_snapshot() {
     let tmp = TempDir::new().unwrap();
@@ -319,4 +338,67 @@ fn doctor_reports_structured_gates_and_suite_tools_when_ready() {
         .unwrap()
         .iter()
         .any(|tool| tool["name"] == "witness"));
+}
+
+#[test]
+fn doctor_detects_nested_project_manifests_from_repo_root() {
+    let tmp = TempDir::new().unwrap();
+    let dir = tmp.path();
+    write_nested_tauri_project(dir);
+
+    assert_success(
+        &Command::new("git")
+            .arg("init")
+            .current_dir(dir)
+            .output()
+            .unwrap(),
+        "git init",
+    );
+    assert_success(
+        &Command::new("git")
+            .args(["add", "-A"])
+            .current_dir(dir)
+            .output()
+            .unwrap(),
+        "git add",
+    );
+    assert_success(
+        &Command::new("git")
+            .args(["commit", "-m", "init", "--allow-empty"])
+            .current_dir(dir)
+            .output()
+            .unwrap(),
+        "git commit",
+    );
+
+    let doctor = json_output(
+        probe(dir)
+            .args(["--format", "json", "doctor"])
+            .output()
+            .unwrap(),
+        "doctor json",
+    );
+
+    assert_ne!(doctor["doctor"]["status"], "caution");
+    assert!(!doctor["doctor"]["warnings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|issue| issue["code"] == "no_projects_detected"));
+
+    let gates = doctor["doctor"]["gates"].as_array().unwrap();
+    assert!(gates.iter().any(|gate| {
+        gate["name"] == "project"
+            && gate["status"] == "ok"
+            && gate["summary"]
+                .as_str()
+                .is_some_and(|summary| summary.contains("supported project stack"))
+    }));
+    assert!(doctor["doctor"]["recommended_commands"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|command| {
+            command["cwd"] == "app" && command["command"] == "cd app && npm run build"
+        }));
 }

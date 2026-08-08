@@ -174,6 +174,7 @@ Runs a scan and produces an actionable preflight summary:
       {
         "action": "test",
         "command": "cargo test",
+        "cwd": ".",
         "argv": ["cargo", "test"],
         "confidence": "high",
         "reason": "Rust manifest detected"
@@ -184,10 +185,21 @@ Runs a scan and produces an actionable preflight summary:
 ```
 
 All arrays are allowed to be empty. `git` is `null` outside a git repository.
-`ahead` and `behind` are `null` when no upstream is configured.
+`ahead` and `behind` are `null` when no upstream is configured. Project
+detection starts at the scanned repo root and also checks shallow nested
+manifest roots, such as `app/package.json`, `app/src-tauri/Cargo.toml`, and
+`crates/*/Cargo.toml`. Generated/dependency directories such as
+`node_modules`, `target`, `dist`, and hidden dot directories are skipped.
 Snapshots written before `probe.scan.v1` remain readable; missing
-`schema_version`, `suite_tools`, `argv`, or `reason` fields are treated as
-legacy-compatible defaults.
+`schema_version`, `suite_tools`, `cwd`, `argv`, or `reason` fields are treated
+as legacy-compatible defaults.
+
+Suggested command rules:
+
+- `argv` is the structured command and arguments to execute.
+- `cwd` is the directory where the command should run, relative to `repo_path`.
+- `command` is a display/copy string. For nested projects it includes a
+  `cd <cwd> && ...` prefix so agents do not have to infer execution context.
 
 Suite-tool states:
 
@@ -283,6 +295,7 @@ MVP diff categories:
       {
         "action": "test",
         "command": "cargo test",
+        "cwd": ".",
         "argv": ["cargo", "test"],
         "confidence": "high",
         "reason": "Rust manifest detected"
@@ -292,6 +305,7 @@ MVP diff categories:
       {
         "action": "test",
         "command": "cargo test",
+        "cwd": ".",
         "argv": ["cargo", "test"],
         "confidence": "high",
         "reason": "Rust manifest detected"

@@ -38,6 +38,8 @@ pub struct SuggestedCommand {
     pub command: String,
     #[serde(default = "default_command_argv")]
     pub argv: Vec<String>,
+    #[serde(default = "default_command_cwd")]
+    pub cwd: String,
     pub confidence: String,
     #[serde(default)]
     pub reason: String,
@@ -164,19 +166,22 @@ fn suggest_commands(projects: &[DetectedProject]) -> Vec<SuggestedCommand> {
     for project in projects {
         match project.kind.as_str() {
             "rust" => {
-                commands.push(command(
+                commands.push(command_for_project(
+                    project,
                     "check",
                     &["cargo", "check"],
                     "high",
                     "Rust manifest detected",
                 ));
-                commands.push(command(
+                commands.push(command_for_project(
+                    project,
                     "test",
                     &["cargo", "test"],
                     "high",
                     "Rust manifest detected",
                 ));
-                commands.push(command(
+                commands.push(command_for_project(
+                    project,
                     "build",
                     &["cargo", "build"],
                     "high",
@@ -194,19 +199,22 @@ fn suggest_commands(projects: &[DetectedProject]) -> Vec<SuggestedCommand> {
                 } else {
                     "npm"
                 };
-                commands.push(command(
+                commands.push(command_for_project(
+                    project,
                     "install",
                     &[pm, "install"],
                     "high",
                     "Node package manifest detected",
                 ));
-                commands.push(command(
+                commands.push(command_for_project(
+                    project,
                     "build",
                     &[pm, "run", "build"],
                     "medium",
                     "Common Node build script; verify package scripts if this fails",
                 ));
-                commands.push(command(
+                commands.push(command_for_project(
+                    project,
                     "test",
                     &[pm, "test"],
                     "medium",
@@ -214,7 +222,8 @@ fn suggest_commands(projects: &[DetectedProject]) -> Vec<SuggestedCommand> {
                 ));
             }
             "python" => {
-                commands.push(command(
+                commands.push(command_for_project(
+                    project,
                     "test",
                     &["python", "-m", "pytest"],
                     "medium",
@@ -222,13 +231,15 @@ fn suggest_commands(projects: &[DetectedProject]) -> Vec<SuggestedCommand> {
                 ));
             }
             "go" => {
-                commands.push(command(
+                commands.push(command_for_project(
+                    project,
                     "build",
                     &["go", "build", "./..."],
                     "high",
                     "Go module detected",
                 ));
-                commands.push(command(
+                commands.push(command_for_project(
+                    project,
                     "test",
                     &["go", "test", "./..."],
                     "high",
@@ -236,15 +247,17 @@ fn suggest_commands(projects: &[DetectedProject]) -> Vec<SuggestedCommand> {
                 ));
             }
             "tauri" => {
-                commands.push(command(
+                commands.push(command_with_cwd(
                     "dev",
                     &["npm", "run", "tauri", "dev"],
+                    &tauri_frontend_cwd(&project.root),
                     "medium",
                     "Tauri project detected; run as a smoke/dev command, not unattended CI",
                 ));
-                commands.push(command(
+                commands.push(command_with_cwd(
                     "build",
                     &["npm", "run", "tauri", "build"],
+                    &tauri_frontend_cwd(&project.root),
                     "medium",
                     "Tauri project detected; binary build may require human smoke testing",
                 ));
@@ -256,14 +269,69 @@ fn suggest_commands(projects: &[DetectedProject]) -> Vec<SuggestedCommand> {
     commands
 }
 
-fn command(action: &str, argv: &[&str], confidence: &str, reason: &str) -> SuggestedCommand {
+fn command_for_project(
+    project: &DetectedProject,
+    action: &str,
+    argv: &[&str],
+    confidence: &str,
+    reason: &str,
+) -> SuggestedCommand {
+    command_with_cwd(action, argv, &project.root, confidence, reason)
+}
+
+fn command_with_cwd(
+    action: &str,
+    argv: &[&str],
+    cwd: &str,
+    confidence: &str,
+    reason: &str,
+) -> SuggestedCommand {
+    let cwd = if cwd.is_empty() { "." } else { cwd };
     SuggestedCommand {
         action: action.to_string(),
-        command: argv.join(" "),
+        command: display_command(cwd, argv),
         argv: argv.iter().map(|part| part.to_string()).collect(),
+        cwd: cwd.to_string(),
         confidence: confidence.to_string(),
         reason: reason.to_string(),
     }
+}
+
+fn display_command(cwd: &str, argv: &[&str]) -> String {
+    let command = argv
+        .iter()
+        .map(|part| shell_quote(part))
+        .collect::<Vec<_>>();
+    let command = command.join(" ");
+    if cwd == "." {
+        command
+    } else {
+        format!("cd {} && {}", shell_quote(cwd), command)
+    }
+}
+
+fn shell_quote(value: &str) -> String {
+    if value
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '/' | '_' | '-' | ':'))
+    {
+        value.to_string()
+    } else {
+        format!("'{}'", value.replace('\'', "'\"'\"'"))
+    }
+}
+
+fn tauri_frontend_cwd(root: &str) -> String {
+    root.strip_suffix("/src-tauri")
+        .or_else(|| root.strip_suffix("\\src-tauri"))
+        .map(|parent| {
+            if parent.is_empty() {
+                ".".to_string()
+            } else {
+                parent.to_string()
+            }
+        })
+        .unwrap_or_else(|| ".".to_string())
 }
 
 fn default_scan_schema_version() -> String {
@@ -272,4 +340,8 @@ fn default_scan_schema_version() -> String {
 
 fn default_command_argv() -> Vec<String> {
     Vec::new()
+}
+
+fn default_command_cwd() -> String {
+    ".".to_string()
 }
