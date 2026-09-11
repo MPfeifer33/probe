@@ -2,7 +2,7 @@
 
 **What:** Agent preflight and drift scanner. Detects project type, git state, tool availability, agent-suite linkage, lockfile freshness, and suggests commands — all in one scan. `probe brief` is the one-page cold-start read (what is this repo, what state is it in, what should I run).
 
-**Status:** Scan, snapshot, diff, doctor, brief, docs, and integration tests are complete (33 tests, clippy clean). `brief` (2026-09-11) absorbed `stitch brief`; stitch is archived. JSON contracts expose schema versions (`probe.scan.v1`, `probe.doctor.v1`, `probe.brief.v1`), structured command args, command working directories, doctor gates/action levels, and suite-tool visibility.
+**Status:** Scan, snapshot, diff, doctor, brief, docs, and integration tests are complete (34 tests, clippy clean). `brief` (2026-09-11) absorbed `stitch brief`; stitch is archived. JSON contracts expose schema versions (`probe.scan.v1`, `probe.doctor.v1`, `probe.brief.v1`), structured command args, command working directories, doctor gates/action levels, and suite-tool visibility.
 
 **Tech:** Rust 2021, clap 4, serde/serde_json, chrono, sha2, thiserror.
 
@@ -75,4 +75,4 @@ probe doctor                       # actionable preflight summary
 
 ## Last Updated
 
-2026-09-11 — Added `probe brief` (supersedes `stitch brief`): one-page cold-start orientation composed from scan + doctor + PROJECT.md/README front matter, changed files, TODO markers, root markers, sentinel summary. Text + JSON (`probe.brief.v1`), 6 new integration tests + 4 unit tests. Degrades gracefully on non-stack repos (e.g. Unity).
+2026-09-11 — Unity-aware detection: scan skips the editor `Library/` cache (plus `obj`/`Temp`/`Logs` everywhere) and no longer reports UPM `package.json` manifests (those with a `unity` field) as Node projects; `probe brief` on idle-playground went from 186 lines of bogus `npm` commands to a 23-line brief. Earlier the same day: added `probe brief` (supersedes `stitch brief`): one-page cold-start orientation composed from scan + doctor + PROJECT.md/README front matter, changed files, TODO markers, root markers, sentinel summary. Text + JSON (`probe.brief.v1`), 6 new integration tests + 4 unit tests. Degrades gracefully on non-stack repos (e.g. Unity).

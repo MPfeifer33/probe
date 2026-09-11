@@ -362,3 +362,51 @@ fn scan_detects_lockfile_with_hash() {
     assert_eq!(lockfiles[0]["path"], "Cargo.lock");
     assert!(!lockfiles[0]["hash"].as_str().unwrap().is_empty());
 }
+
+#[test]
+fn scan_ignores_unity_package_manifests_and_library_cache() {
+    let tmp = TempDir::new().unwrap();
+    let dir = tmp.path();
+    std::fs::create_dir_all(dir.join("ProjectSettings")).unwrap();
+    std::fs::write(
+        dir.join("ProjectSettings/ProjectVersion.txt"),
+        "m_EditorVersion: 6000.0.82f1\n",
+    )
+    .unwrap();
+    // Editor-generated package cache: must not be walked at all.
+    std::fs::create_dir_all(dir.join("Library/PackageCache/com.unity.ugui@abc")).unwrap();
+    std::fs::write(
+        dir.join("Library/PackageCache/com.unity.ugui@abc/package.json"),
+        r#"{"name": "com.unity.ugui", "version": "2.0.0", "unity": "2019.2"}"#,
+    )
+    .unwrap();
+    // Embedded UPM package: a package.json, but not a Node project.
+    std::fs::create_dir_all(dir.join("Packages/com.example.bridge")).unwrap();
+    std::fs::write(
+        dir.join("Packages/com.example.bridge/package.json"),
+        r#"{"name": "com.example.bridge", "version": "0.1.0", "unity": "6000.0"}"#,
+    )
+    .unwrap();
+    // A real Node tool living next to the Unity project still counts.
+    std::fs::create_dir_all(dir.join("tools/site")).unwrap();
+    std::fs::write(
+        dir.join("tools/site/package.json"),
+        r#"{"name": "site", "version": "1.0.0"}"#,
+    )
+    .unwrap();
+
+    let output = probe(dir)
+        .args(["scan", "--format", "json"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let projects = json["scan"]["projects"].as_array().unwrap();
+    let roots: Vec<&str> = projects
+        .iter()
+        .map(|p| p["root"].as_str().unwrap())
+        .collect();
+    assert_eq!(roots, vec!["tools/site"], "projects: {projects:#?}");
+}

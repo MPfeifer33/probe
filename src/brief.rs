@@ -472,7 +472,10 @@ fn unity_version(repo: &Path) -> Option<String> {
 // ---------------------------------------------------------------------------
 
 fn scan_todo_markers(repo: &Path) -> TodoBrief {
-    let mut walk = TodoWalk::default();
+    let mut walk = TodoWalk {
+        unity: detect::is_unity_root(repo),
+        ..TodoWalk::default()
+    };
     walk.visit(repo, Path::new(""), 0);
 
     walk.files
@@ -490,6 +493,7 @@ fn scan_todo_markers(repo: &Path) -> TodoBrief {
 
 #[derive(Default)]
 struct TodoWalk {
+    unity: bool,
     scanned: usize,
     truncated: bool,
     files: Vec<TodoFile>,
@@ -520,7 +524,7 @@ impl TodoWalk {
             let child = rel.join(name.as_ref());
 
             if file_type.is_dir() {
-                if detect::should_skip_dir(&name) || is_generated_dir(&name) {
+                if detect::should_skip_dir_in(self.unity, &name) {
                     continue;
                 }
                 self.visit(repo, &child, depth + 1);
@@ -546,13 +550,6 @@ impl TodoWalk {
             }
         }
     }
-}
-
-fn is_generated_dir(name: &str) -> bool {
-    matches!(
-        name,
-        "Library" | "Temp" | "Logs" | "obj" | "bin" | "out" | "Shots" | "UserSettings"
-    )
 }
 
 fn is_source_like(name: &str) -> bool {

@@ -310,7 +310,11 @@ All arrays are allowed to be empty. `git` is `null` outside a git repository.
 detection starts at the scanned repo root and also checks shallow nested
 manifest roots, such as `app/package.json`, `app/src-tauri/Cargo.toml`, and
 `crates/*/Cargo.toml`. Generated/dependency directories such as
-`node_modules`, `target`, `dist`, and hidden dot directories are skipped.
+`node_modules`, `target`, `dist`, `obj`, `Temp`, `Logs`, and hidden dot
+directories are skipped; when the scanned root is a Unity project
+(`ProjectSettings/ProjectVersion.txt`), the editor's `Library/` cache is skipped
+as well. A `package.json` that declares a `unity` field is a Unity UPM package
+manifest, not a Node project, and is not reported.
 Snapshots written before `probe.scan.v1` remain readable; missing
 `schema_version`, `suite_tools`, `cwd`, `argv`, or `reason` fields are treated
 as legacy-compatible defaults.

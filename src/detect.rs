@@ -61,11 +61,16 @@ fn detect_projects_at(repo: &Path, rel_root: &Path, projects: &mut Vec<DetectedP
         });
     }
 
-    // Node/npm/pnpm/yarn
+    // Node/npm/pnpm/yarn. Unity UPM packages also use package.json but declare
+    // a "unity" editor version; those are not Node projects.
     if base.join("package.json").exists() {
         let mut metadata = serde_json::Map::new();
+        let mut is_node = true;
         if let Ok(content) = std::fs::read_to_string(base.join("package.json")) {
             if let Ok(parsed) = serde_json::from_str::<Value>(&content) {
+                if parsed.get("unity").is_some() {
+                    is_node = false;
+                }
                 if let Some(name) = parsed["name"].as_str() {
                     metadata.insert("name".into(), Value::String(name.into()));
                 }
@@ -79,12 +84,14 @@ fn detect_projects_at(repo: &Path, rel_root: &Path, projects: &mut Vec<DetectedP
                 }
             }
         }
-        projects.push(DetectedProject {
-            kind: "node".into(),
-            root: root.clone(),
-            manifest: rel_manifest(rel_root, "package.json"),
-            metadata,
-        });
+        if is_node {
+            projects.push(DetectedProject {
+                kind: "node".into(),
+                root: root.clone(),
+                manifest: rel_manifest(rel_root, "package.json"),
+                metadata,
+            });
+        }
     }
 
     // Python
@@ -163,7 +170,8 @@ fn extract_toml_value(content: &str, key: &str) -> Option<String> {
 
 fn discover_nested_project_roots(repo: &Path) -> Vec<PathBuf> {
     let mut roots = Vec::new();
-    discover_nested_project_roots_inner(repo, Path::new(""), 0, &mut roots);
+    let unity = is_unity_root(repo);
+    discover_nested_project_roots_inner(repo, Path::new(""), 0, unity, &mut roots);
     roots.sort();
     roots.dedup();
     roots
@@ -173,6 +181,7 @@ fn discover_nested_project_roots_inner(
     repo: &Path,
     rel_root: &Path,
     depth: usize,
+    unity: bool,
     roots: &mut Vec<PathBuf>,
 ) {
     const MAX_DEPTH: usize = 3;
@@ -197,7 +206,7 @@ fn discover_nested_project_roots_inner(
         }
         let name = entry.file_name();
         let name = name.to_string_lossy();
-        if should_skip_dir(&name) {
+        if should_skip_dir_in(unity, &name) {
             continue;
         }
 
@@ -205,7 +214,7 @@ fn discover_nested_project_roots_inner(
         if has_project_manifest(&path) && !is_tauri_runtime_dir(&child_rel) {
             roots.push(child_rel.clone());
         }
-        discover_nested_project_roots_inner(repo, &child_rel, depth + 1, roots);
+        discover_nested_project_roots_inner(repo, &child_rel, depth + 1, unity, roots);
     }
 }
 
@@ -222,6 +231,7 @@ fn has_project_manifest(path: &Path) -> bool {
     .any(|manifest| path.join(manifest).exists())
 }
 
+/// Generated or dependency directories that never hold a project of ours.
 pub(crate) fn should_skip_dir(name: &str) -> bool {
     name.starts_with('.')
         || matches!(
@@ -234,7 +244,21 @@ pub(crate) fn should_skip_dir(name: &str) -> bool {
                 | "vendor"
                 | "gen"
                 | "__pycache__"
+                | "obj"
+                | "Temp"
+                | "Logs"
         )
+}
+
+/// `should_skip_dir`, plus the Unity editor's generated `Library/` when the
+/// scanned root is a Unity project (it caches every UPM package there).
+pub(crate) fn should_skip_dir_in(unity: bool, name: &str) -> bool {
+    should_skip_dir(name) || (unity && name == "Library")
+}
+
+/// A Unity project root carries `ProjectSettings/ProjectVersion.txt`.
+pub(crate) fn is_unity_root(repo: &Path) -> bool {
+    repo.join("ProjectSettings/ProjectVersion.txt").is_file()
 }
 
 fn is_tauri_runtime_dir(rel_root: &Path) -> bool {

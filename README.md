@@ -140,7 +140,10 @@ Reports:
 
 - project stacks: Rust, Node, Python, Go, Tauri
 - shallow nested project manifests, such as `app/package.json`,
-  `app/src-tauri/Cargo.toml`, or `crates/*/Cargo.toml`
+  `app/src-tauri/Cargo.toml`, or `crates/*/Cargo.toml` (generated
+  directories are skipped; in a Unity project the editor's `Library/` cache is
+  skipped too, and UPM `package.json` files that declare a `unity` version are
+  not reported as Node projects)
 - git branch, HEAD, dirty/untracked counts, ahead/behind, recent commits
 - relevant tool availability and versions
 - agent-suite tools such as latch, atlas, sentinel, witness, and switchboard
