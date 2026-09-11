@@ -9,6 +9,9 @@ what changed, and what commands are likely safe?
 ## Goals
 
 - Give agents a quick, structured read of a repo before touching files.
+- Answer the cold-start question in one command (`brief`): what is this repo,
+  what state is it in, what should I run. This absorbs the former
+  `stitch brief` so one tool covers orientation.
 - Detect project stacks, git state, tools, lockfiles, and likely commands.
 - Save repo-local snapshots that survive compaction and session boundaries.
 - Compare current state against a snapshot to surface drift.
@@ -40,6 +43,35 @@ Snapshots live under the scanned repo:
 coordination state, not a product artifact.
 
 ## Commands
+
+### brief
+
+```sh
+probe brief
+probe brief --repo /path/to/project
+probe brief --format json
+```
+
+Runs `scan` and `doctor` and composes them with bounded extra sources into a
+compact orientation brief:
+
+- `PROJECT.md` front matter and headings, or `README.md` title/first paragraph
+  and headings when no `PROJECT.md` exists
+- other root orientation docs present (`CLAUDE.md`, `AGENTS.md`,
+  `docs/SPEC.md`, `docs/`, `CHANGELOG.md`, `CONTRIBUTING.md`,
+  `.agent-contract.toml`)
+- root markers outside the stack model (Unity, Makefile, justfile, Dockerfile,
+  docker-compose, CMake, Nix flake, Gemfile, GitHub workflows)
+- git state plus changed files (max 10) and total commit count
+- doctor status/action level with blockers and warnings, missing tools, stale
+  lockfiles
+- TODO/FIXME/HACK/XXX marker counts (bounded: max 3000 source-like files,
+  depth 6, files up to 256 KiB, generated dirs skipped)
+- suite tools grouped by state, sentinel summary when present
+- recommended commands
+
+Text output targets well under 60 lines for a typical repo. `scan` remains the
+detailed view; `brief` never repeats hashes, tool versions, or gates.
 
 ### scan
 
@@ -106,6 +138,95 @@ Runs a scan and produces an actionable preflight summary:
 - recommended commands: likely validation commands with shell text, `argv`,
   confidence, and reason
 - suite tools: installed/linked status for related agent-first tools
+
+## Brief Schema
+
+`probe brief --format json` returns:
+
+```json
+{
+  "ok": true,
+  "brief": {
+    "schema_version": "probe.brief.v1",
+    "timestamp": "2026-09-11T20:00:00Z",
+    "repo_path": "/path/to/repo",
+    "name": "repo",
+    "docs": {
+      "project_md": {
+        "path": "PROJECT.md",
+        "title": "PROJECT.md — repo",
+        "what": "One-line purpose from **What:** or **Purpose:**",
+        "status": "From **Status:**",
+        "tech": "From **Tech:** or **Stack:**",
+        "last_updated": "First line under ## Last Updated",
+        "headings": ["Layout", "Build", "Last Updated"]
+      },
+      "readme": null,
+      "other": ["docs/SPEC.md", "docs/"]
+    },
+    "markers": ["Makefile (Makefile)"],
+    "projects": [
+      { "kind": "rust", "root": ".", "manifest": "Cargo.toml", "name": "repo" }
+    ],
+    "git": {
+      "branch": "master",
+      "head_sha": "83a8641",
+      "dirty_count": 1,
+      "untracked_count": 0,
+      "ahead": null,
+      "behind": null,
+      "commit_count": 42,
+      "changed_files": [{ "status": "M", "path": "src/main.rs" }],
+      "changed_files_truncated": false,
+      "recent_commits": [
+        { "sha": "83a8641", "message": "Initial skeleton", "date": "2026-06-22T03:42:00Z" }
+      ]
+    },
+    "health": {
+      "status": "caution",
+      "action_level": "review",
+      "blockers": [],
+      "warnings": [
+        { "code": "git_dirty", "message": "Repository has modified files", "detail": "1 dirty, 0 untracked" }
+      ]
+    },
+    "tools": { "available": ["git", "rustc", "cargo"], "missing": [] },
+    "lockfiles": { "tracked": 1, "stale": [] },
+    "suite_tools": { "linked": ["probe"], "available": ["latch"], "missing": ["atlas"] },
+    "todos": {
+      "total": 3,
+      "files_scanned": 19,
+      "truncated": false,
+      "top_files": [{ "path": "src/main.rs", "count": 3 }]
+    },
+    "sentinel": null,
+    "commands": [
+      {
+        "action": "test",
+        "command": "cargo test",
+        "cwd": ".",
+        "argv": ["cargo", "test"],
+        "confidence": "high",
+        "reason": "Rust manifest detected"
+      }
+    ]
+  }
+}
+```
+
+Brief rules:
+
+- `docs.project_md` and `docs.readme` are `null` when the file is absent; text
+  values are trimmed to 240 characters with a trailing ellipsis.
+- `git` is `null` outside a git repository; `commit_count` is `null` when git
+  cannot count.
+- `health` mirrors the doctor status, action level, blockers, and warnings but
+  omits gates and the compatibility `next_commands` alias.
+- `commands` uses the doctor command shape (`argv`, `cwd`, `confidence`,
+  `reason`).
+- `sentinel` is populated only from an existing `.agent-sentinel/matrix.json`
+  `summary` block; `probe` never writes sentinel state.
+- `todos.truncated` is `true` when the bounded walk hit its file or depth cap.
 
 ## Scan Schema
 

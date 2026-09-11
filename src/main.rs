@@ -1,3 +1,4 @@
+mod brief;
 mod cli;
 mod detect;
 mod diff;
@@ -81,6 +82,13 @@ fn run(cli: &Cli) -> Result<(), ProbeError> {
             let result = scan::run_scan(&repo)?;
             let doctor = doctor::build_report(&result);
             report::print_doctor(&doctor, cli.is_json())?;
+            Ok(())
+        }
+        Command::Brief => {
+            let repo = cli.resolve_repo()?;
+            let result = scan::run_scan(&repo)?;
+            let brief = brief::build_report(&repo, &result);
+            report::print_brief(&brief, cli.is_json())?;
             Ok(())
         }
     }

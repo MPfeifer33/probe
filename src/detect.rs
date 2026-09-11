@@ -222,7 +222,7 @@ fn has_project_manifest(path: &Path) -> bool {
     .any(|manifest| path.join(manifest).exists())
 }
 
-fn should_skip_dir(name: &str) -> bool {
+pub(crate) fn should_skip_dir(name: &str) -> bool {
     name.starts_with('.')
         || matches!(
             name,

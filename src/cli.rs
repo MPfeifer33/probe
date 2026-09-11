@@ -63,4 +63,7 @@ pub enum Command {
 
     /// Actionable preflight summary: blockers, warnings, suggested commands
     Doctor,
+
+    /// Compact cold-start brief: what this repo is, what state it is in, what to run
+    Brief,
 }

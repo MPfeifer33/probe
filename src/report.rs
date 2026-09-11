@@ -1,3 +1,4 @@
+use crate::brief::BriefReport;
 use crate::scan::ScanResult;
 use crate::ProbeError;
 use crate::{diff::DiffReport, doctor::DoctorReport};
@@ -43,6 +44,21 @@ pub fn print_doctor(result: &DoctorReport, is_json: bool) -> Result<(), ProbeErr
         );
     } else {
         print_doctor_text(result);
+    }
+    Ok(())
+}
+
+pub fn print_brief(result: &BriefReport, is_json: bool) -> Result<(), ProbeError> {
+    if is_json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "ok": true,
+                "brief": result,
+            }))?
+        );
+    } else {
+        print_brief_text(result);
     }
     Ok(())
 }
@@ -228,4 +244,226 @@ fn print_issues(label: &str, issues: &[crate::doctor::DoctorIssue]) {
         }
     }
     println!();
+}
+
+fn print_brief_text(result: &BriefReport) {
+    println!("probe brief: {} ({})", result.name, result.repo_path);
+    println!();
+
+    // What / state, from the docs.
+    let mut described = false;
+    if let Some(doc) = &result.docs.project_md {
+        if let Some(what) = &doc.what {
+            println!("  What: {what}");
+            described = true;
+        }
+        if let Some(status) = &doc.status {
+            println!("  Status: {status}");
+        }
+        if let Some(tech) = &doc.tech {
+            println!("  Tech: {tech}");
+        }
+        if let Some(updated) = &doc.last_updated {
+            println!("  Last updated: {updated}");
+        }
+    }
+    if !described {
+        if let Some(readme) = &result.docs.readme {
+            if let Some(summary) = &readme.summary {
+                println!("  What: {summary}");
+            }
+        }
+    }
+    let mut docs = Vec::new();
+    if let Some(doc) = &result.docs.project_md {
+        if doc.headings.is_empty() {
+            docs.push(doc.path.clone());
+        } else {
+            docs.push(format!("{} [{}]", doc.path, doc.headings.join(", ")));
+        }
+    }
+    if let Some(readme) = &result.docs.readme {
+        if readme.headings.is_empty() {
+            docs.push(readme.path.clone());
+        } else {
+            docs.push(format!("{} [{}]", readme.path, readme.headings.join(", ")));
+        }
+    }
+    docs.extend(result.docs.other.iter().cloned());
+    if docs.is_empty() {
+        println!("  Docs: none found (no PROJECT.md or README.md)");
+    } else {
+        println!("  Docs: {}", docs.join(" · "));
+    }
+    println!();
+
+    // Stack.
+    if result.projects.is_empty() {
+        println!("  Stack: none detected (supported: Rust, Node, Python, Go, Tauri)");
+    } else {
+        let stacks: Vec<String> = result
+            .projects
+            .iter()
+            .map(|p| {
+                let name = p
+                    .name
+                    .as_ref()
+                    .map(|n| format!(" \"{n}\""))
+                    .unwrap_or_default();
+                if p.root == "." {
+                    format!("{}{} ({})", p.kind, name, p.manifest)
+                } else {
+                    format!("{}{} @ {}", p.kind, name, p.root)
+                }
+            })
+            .collect();
+        println!("  Stack: {}", stacks.join(" · "));
+    }
+    if !result.markers.is_empty() {
+        println!("  Markers: {}", result.markers.join(" · "));
+    }
+
+    // Git.
+    match &result.git {
+        Some(git) => {
+            let mut state = if git.dirty_count == 0 && git.untracked_count == 0 {
+                "clean".to_string()
+            } else {
+                format!(
+                    "{} dirty, {} untracked",
+                    git.dirty_count, git.untracked_count
+                )
+            };
+            if let (Some(ahead), Some(behind)) = (git.ahead, git.behind) {
+                if ahead > 0 || behind > 0 {
+                    state.push_str(&format!(", ahead {ahead}/behind {behind}"));
+                }
+            }
+            if let Some(count) = git.commit_count {
+                state.push_str(&format!(", {count} commits"));
+            }
+            println!("  Git: {} @ {} — {}", git.branch, git.head_sha, state);
+            if !git.changed_files.is_empty() {
+                let mut changed: Vec<String> = git
+                    .changed_files
+                    .iter()
+                    .map(|c| format!("{} {}", c.status, c.path))
+                    .collect();
+                if git.changed_files_truncated {
+                    changed.push("…".to_string());
+                }
+                println!("    Changed: {}", changed.join(", "));
+            }
+            if !git.recent_commits.is_empty() {
+                println!("    Recent:");
+                for commit in &git.recent_commits {
+                    println!("      {} {}", commit.sha, commit.message);
+                }
+            }
+        }
+        None => println!("  Git: not a git repository"),
+    }
+    println!();
+
+    // Health, one line plus issue codes.
+    let mut issues: Vec<String> = result
+        .health
+        .blockers
+        .iter()
+        .map(|i| format!("BLOCKER {}: {}", i.code, i.detail))
+        .collect();
+    issues.extend(
+        result
+            .health
+            .warnings
+            .iter()
+            .map(|i| format!("{}: {}", i.code, i.detail)),
+    );
+    println!(
+        "  Health: {} ({})",
+        result.health.status, result.health.action_level
+    );
+    for issue in issues.iter().take(6) {
+        println!("    {issue}");
+    }
+    if issues.len() > 6 {
+        println!("    … {} more (see probe doctor)", issues.len() - 6);
+    }
+    if !result.tools.missing.is_empty() {
+        println!("  Missing tools: {}", result.tools.missing.join(", "));
+    }
+    if !result.lockfiles.stale.is_empty() {
+        println!("  Stale lockfiles: {}", result.lockfiles.stale.join(", "));
+    }
+
+    // Markers in source.
+    if result.todos.total == 0 {
+        println!(
+            "  TODO markers: none in {} files scanned{}",
+            result.todos.files_scanned,
+            if result.todos.truncated {
+                " (bounded)"
+            } else {
+                ""
+            }
+        );
+    } else {
+        let top: Vec<String> = result
+            .todos
+            .top_files
+            .iter()
+            .map(|f| format!("{} ×{}", f.path, f.count))
+            .collect();
+        println!(
+            "  TODO markers: {} across {} files scanned{} — {}",
+            result.todos.total,
+            result.todos.files_scanned,
+            if result.todos.truncated {
+                " (bounded)"
+            } else {
+                ""
+            },
+            top.join(", ")
+        );
+    }
+
+    // Suite + sentinel.
+    let mut suite = Vec::new();
+    if !result.suite_tools.linked.is_empty() {
+        suite.push(format!("linked {}", result.suite_tools.linked.join(", ")));
+    }
+    if !result.suite_tools.available.is_empty() {
+        suite.push(format!(
+            "available {}",
+            result.suite_tools.available.join(", ")
+        ));
+    }
+    if !result.suite_tools.missing.is_empty() {
+        suite.push(format!("missing {}", result.suite_tools.missing.join(", ")));
+    }
+    if !suite.is_empty() {
+        println!("  Suite: {}", suite.join(" · "));
+    }
+    if let Some(sentinel) = &result.sentinel {
+        println!(
+            "  Sentinel: {} tracked, {} high-risk, {} medium-risk",
+            sentinel.tracked_files, sentinel.high_risk, sentinel.medium_risk
+        );
+    }
+    println!();
+
+    // What to run.
+    if result.commands.is_empty() {
+        println!("  Run: no commands inferred; read the docs above for build/run steps");
+    } else {
+        println!("  Run:");
+        for command in &result.commands {
+            println!(
+                "    {:<8} {}  [{}]",
+                command.action, command.command, command.confidence
+            );
+        }
+    }
+    println!();
+    println!("  Detail: probe scan · probe doctor");
 }

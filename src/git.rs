@@ -155,3 +155,58 @@ fn get_recent_commits(repo: &Path, count: usize) -> Vec<RecentCommit> {
         _ => Vec::new(),
     }
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ChangedFile {
+    pub status: String,
+    pub path: String,
+}
+
+/// Paths reported by `git status --porcelain`, capped at `limit`.
+/// Returns the listed entries and whether more were cut off.
+pub fn get_changed_files(repo: &Path, limit: usize) -> (Vec<ChangedFile>, bool) {
+    let output = Command::new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(repo)
+        .output();
+
+    let Ok(output) = output else {
+        return (Vec::new(), false);
+    };
+    if !output.status.success() {
+        return (Vec::new(), false);
+    }
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut all: Vec<ChangedFile> = text
+        .lines()
+        .filter(|line| line.len() > 3)
+        .map(|line| {
+            let status = line[..2].trim().to_string();
+            let path = line[3..].trim().to_string();
+            // Renames show as "old -> new"; keep the destination.
+            let path = path
+                .rsplit_once(" -> ")
+                .map(|(_, new)| new.to_string())
+                .unwrap_or(path);
+            ChangedFile { status, path }
+        })
+        .collect();
+
+    let truncated = all.len() > limit;
+    all.truncate(limit);
+    (all, truncated)
+}
+
+/// Total commits reachable from HEAD, or `None` when git cannot answer.
+pub fn get_commit_count(repo: &Path) -> Option<usize> {
+    let output = Command::new("git")
+        .args(["rev-list", "--count", "HEAD"])
+        .current_dir(repo)
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    String::from_utf8_lossy(&output.stdout).trim().parse().ok()
+}

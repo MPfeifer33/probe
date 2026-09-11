@@ -9,7 +9,8 @@ What am I standing in, what changed, and what commands are likely safe?
 
 It detects project stacks, git state, tool availability, lockfile freshness,
 inferred build/test/run commands, and nearby agent-suite tooling. It can also
-save snapshots and compare later sessions against them.
+save snapshots and compare later sessions against them, and it produces a
+compact cold-start `brief` meant to be the first thing an agent reads.
 
 ## Suite Context
 
@@ -29,7 +30,10 @@ Probe is part of a local-first agent tool suite centered on
 ```sh
 cargo build
 
-# Scan the current repo.
+# Cold-start brief: what is this repo, what state is it in, what should I run.
+cargo run -- brief
+
+# Scan the current repo (the detailed view).
 cargo run -- scan
 
 # Save a local baseline.
@@ -57,6 +61,7 @@ Text is the default because `probe` is often read directly by agents and
 humans:
 
 ```sh
+probe brief
 probe scan
 probe doctor
 ```
@@ -64,6 +69,7 @@ probe doctor
 Use JSON when another tool or prompt pipeline needs stable structure:
 
 ```sh
+probe brief --format json
 probe scan --format json
 probe diff --format json
 probe doctor --format json
@@ -84,6 +90,43 @@ probe doctor --format json
 artifact.
 
 ## Commands
+
+### brief
+
+```sh
+probe brief
+probe brief --repo /path/to/repo
+probe brief --format json
+```
+
+One compact page (typically under 40 lines of text) answering the cold-start
+question: what is this repo, what state is it in, what should I run. It
+composes the scan and doctor results with a few cheap, bounded extra sources:
+
+- `PROJECT.md` front matter (`**What:**`/`**Purpose:**`, `**Status:**`,
+  `**Tech:**`), its `## Last Updated` line, and its section headings; falls
+  back to the `README.md` title, first paragraph, and headings
+- other orientation docs present at the root (`CLAUDE.md`, `AGENTS.md`,
+  `docs/SPEC.md`, `docs/`, `CHANGELOG.md`, `.agent-contract.toml`)
+- detected stacks (name, root) and root markers scan does not treat as a stack
+  (Unity `ProjectSettings/ProjectVersion.txt`, `Makefile`, `justfile`,
+  `Dockerfile`, `CMakeLists.txt`, `flake.nix`, ...)
+- git branch/HEAD, dirty/untracked counts, total commit count, the changed
+  file list (capped at 10), and the last 5 commits
+- doctor status and action level with issue codes, missing tools, stale
+  lockfiles
+- `TODO`/`FIXME`/`HACK`/`XXX` marker counts from a bounded walk of source-like
+  files (skips generated directories such as `target`, `node_modules`, and
+  Unity `Library`/`Temp`)
+- agent-suite tools grouped by linked/available/missing, and the sentinel
+  risk summary when `.agent-sentinel/matrix.json` exists
+- recommended commands with `cwd`-aware shell text
+
+Hashes, tool versions, gates, and command `argv` stay in `scan`/`doctor`;
+`brief` points at them instead of repeating them. Repos with no supported
+stack or no git still produce a brief (stack: none, git: not a repository).
+
+`probe brief` supersedes `stitch brief`; the `stitch` repo is archived.
 
 ### scan
 
@@ -158,7 +201,8 @@ only tells you what looks safe to run next.
 ## Typical Agent Flow
 
 ```sh
-# 1. Understand the repo.
+# 1. Orient, then check readiness.
+probe brief
 probe doctor
 
 # 2. Save a baseline before touching files.
