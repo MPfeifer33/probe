@@ -20,7 +20,6 @@ Probe is part of a local-first agent tool suite centered on
 - [Probe](https://github.com/MPfeifer33/probe): project preflight and drift
   scanner
 - [Latch](https://github.com/MPfeifer33/latch): repo-local coordination ledger
-- [Atlas](https://github.com/MPfeifer33/atlas): codebase graph and impact map
 - [Sentinel](https://github.com/MPfeifer33/sentinel): regression risk watcher
 - [Witness](https://github.com/MPfeifer33/witness): reproducible command
   evidence recorder
@@ -146,7 +145,8 @@ Reports:
   not reported as Node projects)
 - git branch, HEAD, dirty/untracked counts, ahead/behind, recent commits
 - relevant tool availability and versions
-- agent-suite tools such as latch, atlas, sentinel, witness, and switchboard
+- agent-suite tools such as latch, sentinel, witness, switchboard, sieve, rivet,
+  acurl, and quarry
 - lockfile hashes and stale flags
 - inferred commands with confidence, `cwd`, structured `argv`, and a short
   reason
@@ -227,10 +227,13 @@ appears initialized:
 
 - `probe`: `.agent-probe/`
 - `latch`: `.agent-workspace/workspace.sqlite`
-- `atlas`: `.agent-atlas/graph.json`
 - `sentinel`: `.agent-sentinel/matrix.json`
 - `witness`: `.agent-witness/`
-- `switchboard`, `sieve`, and `rivet`: installed binary check only
+- `acurl`: `.agent-acurl/`
+- `switchboard`, `sieve`, `rivet`, and `quarry`: installed binary check only
+
+Archived tools (atlas, stitch, trail, harbor, loom, mender) are no longer
+listed.
 
 ## Exit Codes
 

@@ -122,6 +122,8 @@ struct SuiteToolDefinition {
     state_path: Option<&'static str>,
 }
 
+/// The live suite as of 2026-09-11. Archived tools (atlas, stitch, trail,
+/// harbor, loom, mender) are intentionally absent.
 fn suite_tool_definitions() -> Vec<SuiteToolDefinition> {
     vec![
         SuiteToolDefinition {
@@ -135,12 +137,6 @@ fn suite_tool_definitions() -> Vec<SuiteToolDefinition> {
             binary: "latch",
             role: "repo-local coordination ledger",
             state_path: Some(".agent-workspace/workspace.sqlite"),
-        },
-        SuiteToolDefinition {
-            name: "atlas",
-            binary: "atlas",
-            role: "codebase graph and impact map",
-            state_path: Some(".agent-atlas/graph.json"),
         },
         SuiteToolDefinition {
             name: "sentinel",
@@ -170,6 +166,18 @@ fn suite_tool_definitions() -> Vec<SuiteToolDefinition> {
             name: "rivet",
             binary: "rivet",
             role: "patch intent verifier",
+            state_path: None,
+        },
+        SuiteToolDefinition {
+            name: "acurl",
+            binary: "acurl",
+            role: "agent-first HTTP client",
+            state_path: Some(".agent-acurl"),
+        },
+        SuiteToolDefinition {
+            name: "quarry",
+            binary: "quarry",
+            role: "dependency audit and update planner",
             state_path: None,
         },
     ]

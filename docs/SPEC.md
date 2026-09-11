@@ -192,7 +192,7 @@ Runs a scan and produces an actionable preflight summary:
     },
     "tools": { "available": ["git", "rustc", "cargo"], "missing": [] },
     "lockfiles": { "tracked": 1, "stale": [] },
-    "suite_tools": { "linked": ["probe"], "available": ["latch"], "missing": ["atlas"] },
+    "suite_tools": { "linked": ["probe"], "available": ["latch"], "missing": ["quarry"] },
     "todos": {
       "total": 3,
       "files_scanned": 19,
@@ -334,7 +334,11 @@ Suite-tool states:
 - `linked`: the binary exists and the expected repo-local state path is present
 
 Tools without repo-local state paths, such as `switchboard`, are considered
-initialized when their binary is installed. `version` may be `null` for tools
+initialized when their binary is installed. The suite contract lists the live
+tools only: probe, latch, sentinel, witness, switchboard, sieve, rivet, acurl,
+quarry. Archived tools (atlas, stitch, trail, harbor, loom, mender) were removed
+from the contract on 2026-09-11; diff reports them as removed from the scan
+contract against older snapshots. `version` may be `null` for tools
 that are installed and answer `--help` but do not expose a `--version` flag.
 
 ## Diff Schema

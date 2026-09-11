@@ -66,7 +66,8 @@ probe doctor                       # actionable preflight summary
 - `doctor` status remains data, not process failure; agents inspect JSON
   `doctor.status` and `doctor.action_level`
 - Agent-suite detection is observational only; `probe` does not initialize
-  latch/atlas/sentinel/witness/switchboard state
+  latch/sentinel/witness/switchboard/acurl state. Suite list = live tools only
+  (probe, latch, sentinel, witness, switchboard, sieve, rivet, acurl, quarry)
 - `brief` composes `scan` + `doctor` (no new detection traits); it adds only
   cheap, bounded sources: PROJECT.md/README front matter, changed files,
   commit count, TODO markers (max 3000 files, depth 6), root markers such as
@@ -75,4 +76,4 @@ probe doctor                       # actionable preflight summary
 
 ## Last Updated
 
-2026-09-11 — Unity-aware detection: scan skips the editor `Library/` cache (plus `obj`/`Temp`/`Logs` everywhere) and no longer reports UPM `package.json` manifests (those with a `unity` field) as Node projects; `probe brief` on idle-playground went from 186 lines of bogus `npm` commands to a 23-line brief. Earlier the same day: added `probe brief` (supersedes `stitch brief`): one-page cold-start orientation composed from scan + doctor + PROJECT.md/README front matter, changed files, TODO markers, root markers, sentinel summary. Text + JSON (`probe.brief.v1`), 6 new integration tests + 4 unit tests. Degrades gracefully on non-stack repos (e.g. Unity).
+2026-09-11 (later) — Suite list refreshed: atlas/stitch/trail/harbor/loom/mender archived and dropped from suite-tool visibility; acurl (`.agent-acurl/`) and quarry added. Earlier: Unity-aware detection: scan skips the editor `Library/` cache (plus `obj`/`Temp`/`Logs` everywhere) and no longer reports UPM `package.json` manifests (those with a `unity` field) as Node projects; `probe brief` on idle-playground went from 186 lines of bogus `npm` commands to a 23-line brief. Earlier the same day: added `probe brief` (supersedes `stitch brief`): one-page cold-start orientation composed from scan + doctor + PROJECT.md/README front matter, changed files, TODO markers, root markers, sentinel summary. Text + JSON (`probe.brief.v1`), 6 new integration tests + 4 unit tests. Degrades gracefully on non-stack repos (e.g. Unity).

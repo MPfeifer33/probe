@@ -319,6 +319,18 @@ fn scan_reports_agent_suite_capabilities() {
     assert!(names.contains(&"probe"));
     assert!(names.contains(&"latch"));
     assert!(names.contains(&"switchboard"));
+    assert!(names.contains(&"acurl"));
+    assert!(names.contains(&"quarry"));
+    // Archived 2026-09-11: atlas, stitch, trail, harbor, loom, mender.
+    for archived in ["atlas", "stitch", "trail", "harbor", "loom", "mender"] {
+        assert!(
+            !names.contains(&archived),
+            "{archived} should not be listed"
+        );
+    }
+    assert!(suite_tools
+        .iter()
+        .any(|tool| tool["name"] == "acurl" && tool["state_path"] == ".agent-acurl"));
     assert!(suite_tools.iter().any(|tool| {
         tool["name"] == "latch"
             && tool["state_path"] == ".agent-workspace/workspace.sqlite"
