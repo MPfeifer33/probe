@@ -12,6 +12,38 @@ inferred build/test/run commands, and nearby agent-suite tooling. It can also
 save snapshots and compare later sessions against them, and it produces a
 compact cold-start `brief` meant to be the first thing an agent reads.
 
+## In ten seconds
+
+```bash
+cargo install --path .
+probe brief --repo ~/projects/house-rules
+```
+
+```text
+probe brief: house-rules (/home/mark/projects/house-rules)
+
+  What: a card game seeded by Caravan (Fallout: New Vegas), mashed into a hybrid, packaged like
+  Docs: PROJECT.md
+
+  Stack: none detected (supported: Rust, Node, Python, Go, Tauri)
+  Git: master @ c9402fc, clean, 12 commits
+    Recent:
+      c9402fc Table style: 2.5D low-poly (Mark)
+      a524381 Assets: KayKit Board Game Bits (Mark); note the 2.5D table fork
+
+  Health: caution (review)
+    no_projects_detected: Supported stacks: Rust, Node, Python, Go, Tauri
+    no_commands_inferred: Add project manifests or run project-specific commands manually
+  TODO markers: none in 6 files scanned
+  Suite: linked switchboard, sieve, rivet, quarry · available probe, latch, sentinel, witness, acurl
+
+  Run: no commands inferred; read the docs above for build/run steps
+```
+
+That is the cold-start read an agent gets before touching anything: what the
+repo is, what state it is in, and what is safe to run. `probe doctor` turns it
+into blockers and suggested commands; `--format json` feeds it to a harness.
+
 ## Suite Context
 
 Probe is part of a local-first agent tool suite centered on
